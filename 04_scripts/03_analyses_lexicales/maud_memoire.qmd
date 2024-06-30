@@ -1,0 +1,1212 @@
+---
+title: "Les mots de l'inflation. Analyse du discours journalistique depuis le retour de l'inflation en 2021"
+author: 
+    - Maud Yaiche 
+    - Baptiste Yzern 
+affiliation: M2 QESS - ENS-PSL & EHESS
+date: "`r Sys.Date()`"
+editor_options: 
+  chunk_output_type: console
+lang: fr
+format: 
+  pdf:
+    page-layout: full
+    code-fold: true
+    code-summary: "Voir le code"
+    code-tools: true
+    theme: united
+    anchor-sections: true
+    toc: true
+    toc-depth: 2
+    toc-expand: true
+    toc-location: left
+    toc-title: "Sommaire"
+    embed-resources: true
+comments:
+  hypothesis: 
+    theme: clean
+bibliography: inflationBiblio.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, dev = 'svg', fig.width = 12)
+
+
+options(digits = 3, knitr.kable.NA = "", scipen = 999)
+theme_gtsummary_language("fr", decimal.mark = ",", big.mark = " ")
+
+```
+
+```{r figures, eval=FALSE, echo=FALSE}
+library(tidyverse)
+library(knitr)
+library(questionr)
+library(gt)
+library(gtsummary)
+library(labelled)
+library(R.temis)
+
+figures <- list()
+
+
+articles_raw <- read_rds(file = "data/articles_raw.rds")
+articles_clean <- read_rds(file = "data/articles_clean2.rds")
+
+
+# Méthodologie    --------------------------------------------------------------
+
+## Bilans lexicaux           ---------------------------------------------------
+
+### Après lemmatisation et découpe                                          ----
+
+corpus <- read_rds(file = "data/cut_corpus_Articles_clean.rds")
+dtm <- read_rds(file = "data/cut_dtm_Articles_clean.rds")
+
+bilan_lexical <- lexical_summary(dtm = dtm, corpus = corpus, variable = "date_year", unit = "global") %>% as.data.frame.matrix() 
+colnames(bilan_lexical)[5] <- c("Total")
+
+table_articles <- c(table(articles_clean$date_year), nrow(articles_clean))
+table_paragraphes <- c(table(NLP::meta(corpus)$date_year), nrow(meta(corpus)))
+
+bilan_lexical <-  rbind(bilan_lexical, 
+                        `N_paragraphes` = table_paragraphes,
+                        `N_articles` = table_articles)
+
+rownames(bilan_lexical) <- c("Nombre de termes", "Nombre de termes uniques", "Part de termes uniques", 
+                             "Nombre de hapax", "Part de hapax", "Nombre de mots", "Nombre de paragraphes", "Nombre d'articles")
+
+figures$methodo_bilanLex_1 <- bilan_lexical
+
+rm(corpus, dtm, bilan_lexical)
+
+
+### Après lemmatisation et sans découpe                                     ----
+
+corpus <- read_rds(file = "data/uncut_corpus_Articles.rds")
+dtm <- read_rds(file = "data/uncut_dtm_Articles_clean.rds")
+
+bilan_lexical <- lexical_summary(dtm = dtm, corpus = corpus, variable = "date_year", unit = "global") %>% as.data.frame.matrix() 
+colnames(bilan_lexical)[5] <- c("Total")
+
+bilan_lexical <-  rbind(bilan_lexical, 
+                        `N_articles` = table_articles)
+
+rownames(bilan_lexical) <- c("Nombre de termes", "Nombre de termes uniques", "Part de termes uniques", 
+                             "Nombre de hapax", "Part de hapax", "Nombre de mots", "Nombre d'articles")
+
+
+figures$methodo_bilanLex_2 <- bilan_lexical
+rm(corpus, dtm, bilan_lexical)
+
+
+### Sans lemmatisation ou découpe                                           ----
+
+corpus <- read_rds(file = "data/uncut_corpus_Articles.rds")
+dtm <- read_rds(file = "data/uncut_dtm_Articles_raw.rds")
+
+bilan_lexical <- lexical_summary(dtm = dtm, corpus = corpus, variable = "date_year", unit = "global") %>% as.data.frame.matrix() 
+colnames(bilan_lexical)[5] <- c("Total")
+
+bilan_lexical <-  rbind(bilan_lexical, 
+                        `N_articles` = table_articles)
+
+rownames(bilan_lexical) <- c("Nombre de termes", "Nombre de termes uniques", "Part de termes uniques", 
+                             "Nombre de hapax", "Part de hapax", "Nombre de mots", "Nombre d'articles")
+
+
+figures$methodo_bilanLex_3 <- bilan_lexical
+rm(corpus, dtm, bilan_lexical, table_articles, table_paragraphes)
+
+
+# Développement     ------------------------------------------------------------
+
+## Inflation vs nombre d'articles par mois                      ----------------
+
+base_graph1 <- articles_clean %>% select(date_month) %>% group_by(date_month) %>% 
+  mutate(date_month = as_date(date_month), n_articles = n()) %>% 
+  distinct
+
+real_inflation <- read.csv(file = "data/Inflation_OCDE_2019_2023.csv")
+real_inflation <- real_inflation %>% filter(LOCATION == "FRA") %>% select(TIME, Value)
+real_inflation$TIME <- paste0(real_inflation$TIME, "-01") %>% as_date()
+
+base_graph1 <- merge(base_graph1, real_inflation, all.x = T, by.x = "date_month", by.y = "TIME")
+
+figures$breaks_mois <- c(base_graph1$date_month %>% as.numeric(), 19723) %>% as_date()
+figures$breaks_trimestre <- figures$breaks_mois[3*(0:16)+1]
+figures$breaks_semestre <- figures$breaks_mois[6*(0:8)+1]
+figures$breaks_annee <- figures$breaks_mois[12*(0:4)+1]
+
+figures$data_graph_inflation_nArticles <- base_graph1
+
+rm(real_inflation, base_graph1)
+
+
+
+## Analyse des spécificités                                 --------------------
+
+corpus <- readRDS("data/cut_corpus_Articles_clean.rds")
+dtm <- readRDS("data/cut_dtm_Articles_clean.rds")
+
+figures$specific_terms_journaux <- specific_terms(dtm, NLP::meta(corpus)$journal, n = 15, min_occ = 30)
+figures$specific_terms_year <- specific_terms(dtm, NLP::meta(corpus)$date_year, n = 15, min_occ = 30)
+figures$specific_terms_trimestre <- specific_terms(dtm, NLP::meta(corpus)$date_trimestre, n = 15, min_occ = 30)
+figures$specific_terms_semestre <- specific_terms(dtm, NLP::meta(corpus)$date_semestre, n = 15, min_occ = 30)
+
+rm(corpus, dtm, specific_terms)
+
+
+## Classification sur le corpus découpé                           --------------------
+
+library(rainette)
+library(quanteda)
+
+corpus <- readRDS("data/cut_corpus_Articles_clean.rds")
+dtm <- readRDS("data/cut_dtm_Articles_clean.rds")
+
+n_terms <- rowSums(dtm %>% as.matrix())
+corpus <- corpus[n_terms > 9]
+dtm <- dtm[n_terms > 9, ]
+
+
+dfm <- as.dfm(dtm)
+
+resrai <- rainette(dfm, k = 10)
+figures$rai_cut_res <- resrai
+
+figures$rai_cut_res %>% rainette_plot(dfm, k = 10)
+
+meta_cut <- NLP::meta(corpus)
+meta_cut$cluster_2 <-  cutree_rainette(resrai, k = 2)  %>% as.factor()
+meta_cut$cluster_3 <-  cutree_rainette(resrai, k = 3)  %>% as.factor()
+meta_cut$cluster_4 <-  cutree_rainette(resrai, k = 4)  %>% as.factor()
+meta_cut$cluster_5 <-  cutree_rainette(resrai, k = 5)  %>% as.factor()
+meta_cut$cluster_6 <-  cutree_rainette(resrai, k = 6)  %>% as.factor()
+meta_cut$cluster_7 <-  cutree_rainette(resrai, k = 7)  %>% as.factor()
+meta_cut$cluster_8 <-  cutree_rainette(resrai, k = 8)  %>% as.factor()
+meta_cut$cluster_9 <-  cutree_rainette(resrai, k = 9)  %>% as.factor()
+meta_cut$cluster_10 <- cutree_rainette(resrai, k = 10) %>% as.factor()
+
+figures$rai_cut_meta <- meta_cut
+
+
+
+
+
+
+
+
+# Enregistrement     -----------------------------------------------------------
+
+figures %>% write_rds("data/figures_redaction.rds")
+
+```
+
+*Près d'un tiers des Français comptent payer en plusieurs fois leurs cadeaux de Noël* » titre le journal *Le Point* [@lebelle2023]. *Dans l'Oise, une vie sous le couperet de l'inflation* » peut-on lire dans *Le Monde* [@leclerc2023]. Les médias nationaux s'inquiètent de la recrudescence des prix, en ce qu'elle mine le pouvoir d'achat des Français·es. L'année 2021 est marquée par le retour de l'inflation. Ce phénomène d'augmentation généralisée des prix n'est pas apparu en France depuis les chocs pétroliers et leurs répercussions dans les années 1980. L'inflation suscite de la peur, de l'effroi, voire une certaine panique morale. Toutefois, derrière ces titres et ces phrasés accrocheurs, se cache peut-être une nouvelle manière de traiter et de percevoir l'inflation. En effet, les journalistes semblent avoir commencé à traiter ce sujet avec comme focalisation la guerre en Ukraine et le Covid-19. Ensuite, ils semblent s'être concentrés sur le pouvoir d'achat. Peut-être sont-ils passés d'une analyse des causes de l'inflation à une analyse de ses conséquences. Nous essayons de déterminer ce changement de focale a eu lieu, quand il a eu lieu, et si ce traitement a été différent selon les journaux. Notre étude se place dans une analyse des cadrages de l'information, l'étude du « *framing* » qui a déjà été utilisée pour traiter la pauvreté par exemple [@chong2007 ; @kendall2011].
+
+Ce changement de point de vue est d'autant plus pertinent à analyser qu'il dit beaucoup de l'espace du champ médiatique et des perceptions des Français·es. De récentes études économiques ont démontré la relation entre l'intensité médiatique de l'information sur l'inflation et les perceptions de l'inflation des individus [@larsen2021 ; @dräger2021 ; @schmidt2023]. Toutefois, ces articles se sont concentrés sur des analyses de corrélation entre les perceptions médiatiques et les perceptions des individus sans ouvrir la boîte noire du discours des journalistes. Notre idée est de nous baser sur une « analyse du discours » [@guilbert2017 ; @lebaron2020] dans la lignée de philosophes comme Althusser [@althusser1976] et Foucault [@foucault2009]. Nous proposons de comprendre les évolutions de l'argumentation et des normes véhiculées par les discours médiatiques en prenant aussi bien en compte les évolutions des thématiques dans le temps, que l'évolution des espaces de prises de position [@bourdieu1976 ; @bourdieu1982] de la presse écrite. 
+
+**Dans quelle mesure les différences de vocabulaire, entre 2021 et 2023 et entre les journaux, peuvent nous aider à comprendre les évolutions et les divergences du traitement médiatique du « retour de l'inflation »** **?**
+
+\newpage
+
+# I. Méthodologie et production des données
+
+## A. Méthodes employées
+
+Pour tenter de répondre à cette problématique, nous allons mobiliser diverses techniques d'analyse textuelle. D'abord, les méthodes de la statistique textuelle [@lebart1994] nous seront utiles pour déceler les termes spécifiques utilisées par tel ou tel journal ou encore lors de telle ou telle période. Aussi, les méthodes de classification développés par Max Reinert [@reinert1983] à la suite des travaux de Jean-Paul Benzécri [@benzécri1973] ont également un intérêt de première ordre pour traiter la question du traitement médiatique de l'inflation. En effet, elles nous permettront de mettre en lumière différentes façons de parler de la hausse des prix, que ce soit à l'échelle de l'article même ou bien d'un paragraphe d'article.
+
+Ce travail s'appuie donc sur essentiellement deux *packages* :
+
+-   le *package* `R.temis` [@bouchet-valat2021] construit à partir notamment du *package* `tm` [@feinerer2008],\
+-   et le *package* `rainette` [@barnier2023] construit à partir du *package* `quanteda` [@benoit2018].
+
+Les scripts R utilisés pour constituer notre corpus sont normalement consultables dans cette partie afin de mieux apprécier la façon dont on était mis en pratique nos choix. Pour ce qui est de la construction des figures de ce document, nous invitons le lecteur à consulter le code qui a servi à générer ce document (en consultant le document `.qmd` qui est associé à ce document `.html` ou en cliquant directement tout en haut à droite sur `</> Code` puis `Voir les sources`).
+
+## B. Collecte des données
+
+Pour traiter la question de recherche que nous nous sommes fixée, nous avons décidé d'étudier des articles parus dans la presse parlant de l'inflation. Plus spécifiquement, nous avons fait une recherche sur la base de données d'Europresse avec les deux critères suivant :
+
+-   le mot « inflation » devait apparaître dans le titre de l'article,\
+-   et la date de publication devait être compris entre le 1<sup>er</sup> janvier 2020 et le 30 novembre 2023.
+
+Aussi, nous avons fait le choix de prendre une variété de journaux en compte. Au sein de notre corpus, on peut ainsi compter des titres de la presse nationale généraliste (*Le Monde*, *Le Figaro*, *Aujourd'hui en France*, *La Croix*, *L'Express*, *L'Humanité*, *Valeurs Actuelles*, *Le Point*), de la presse régionale (*La Dépêche du Midi*, *L'Est Républicain*, *Ouest-France*, *Le Parisien*) et enfin de la presse spécialisée dans le domaine économique (*Les Echos* et *La Tribune*).
+
+Notre sélection s'efforce le plus possible de garder une variété de coloration politique au sein de la presse généraliste, mais nous aurions aimé notamment faire varier la coloration politique de la presse spécialisée, en incluant notamment la revue *Alternatives économiques*, qui n'est malheureusement pas disponible sur la plateforme Europresse.
+
+D'un point de vue technique, notre corpus a ainsi été récupéré en cinq fichiers HTML, contenant chacun au plus 1000 articles différents. Il a fallu alors mettre en forme nos données par la suite, ce que détaille la partie suivante.
+
+## C. Traitement des données
+
+### Transformation des documents HTML en base exploitable
+
+Pour mener à bien la mise en forme de nos données, il a d'abord fallu découper les fichiers HMTL contenant plusieurs articles en fichiers HTML contenant un seul article.
+
+En effet, dans certains cas, certaines balises non-remplies étaient absentes, ce qui posait un problème de taille lorsqu'il fallait construire la base de données à partir d'un fichier HTML contenant plusieurs articles. Si un document contenant 1000 articles, l'absence d'un champ pour la date pour au moins un article n'était repéré qu'à partir de la longueur du vecteur de sortie de ce champ, qui était strictement inférieure à 1000. La découpe des gros documents HTML nous permettra ainsi de traiter un à un les articles et d'insérer des valeurs manquantes (NA) lorsqu'un champ est manquant.
+
+Le script utilisé pour découper les documents HTML contenant plusieurs articles, consultable ci-dessous, a été inspiré d'un tutoriel de Corentin Roquebert [@roquebert2018] et adapté à l'aide de ChatGPT pour enregistrer chaque article dans un document HTML distinct.
+
+```{r 'sortie Europresse partie 1 - decoupe', eval=FALSE}
+# Traitement des HTML de sortie d'Europresse - partie 1
+# >>>>> Objectif : séparer les articles dans les fichiers HTML distincts
+
+# On récupère la liste des fichiers dans le dossier où sont placés les fichiers HTML issus d'Europresse
+# On fait attention à ne garder que les fichiers HTML
+filesList <- paste0("data_html/", dir("data_html/", pattern = "*.HTML"))
+
+
+# On adapte le script de Corentin Roquebert avec l'aide de ChatGPT
+# https://rpubs.com/CorentinRoquebert/europresse
+# https://quanti.hypotheses.org/1416
+
+# Ici, on découpe les gros fichiers HTML de 1000 articles en fichiers d'un seul article
+for (j in 1:length(filesList)) {
+  print(paste("séparation du fichier", j))
+  
+  html <- filesList[j]
+  
+  # Lire la page HTML
+  page <- read_html(html)
+  
+  # Sélectionner tous les articles (ajustez le sélecteur CSS selon la structure de votre page)
+  articles <- html_nodes(page, "article") 
+  
+  # Parcourir chaque article et créer une nouvelle page HTML pour chaque article
+  for (i in seq_along(articles)) {
+    article <- articles[i]
+    
+    # Créer un nouveau document XML vide
+    new_page <- xml_new_root("html")
+    
+    # Copier le contenu de l'article sur la nouvelle page
+    for (child in xml_children(article)) {
+      xml_add_child(new_page, child)
+    }
+    rm(child, article)
+    
+    # Créer le dossier s'il existe pas
+    if (!dir.exists("data_html_cuts/")) {dir.create("data_html_cuts/")}
+    
+    # Sauvegarder la nouvelle page HTML
+    write_html(new_page, sprintf("data_html_cuts/article_%04d.html", i + 1000 * (j - 1)))
+    rm(new_page)
+
+    };rm(i)
+};rm(html, page, articles, j)
+```
+
+On obtient alors des pages HTML sur lesquelles on peut récupérer les informations que l'on souhaite à partir des balises des documents, sur le même principe de ce qu'il peut se faire en *web scraping*, cette fois-ci en local.
+
+Pour chaque article contenu donc dans un document HTML, on récupère ainsi :
+
+-   le journal dans lequel il a été publié,\
+-   son titre,\
+-   sa date,\
+-   si possible, la rubrique dans laquelle il a été publié,\
+-   si possible, son auteur·rice,\
+-   et enfin, le plus important, le texte entier de l'article.
+
+Le script utilisé à cette fin est consultable ci-dessous. Malheureusement, la rubrique et la date pouvaient être mélangées au sein du *header* du document HTML, ce qui explique les opérations effectuées à ce niveau-là.
+
+```{r 'sortie Europresse partie 2 - scraping', eval=FALSE}
+# Traitement des HTML de sortie d'Europresse - partie 2
+# >>>>> Objectif : obtenir une base de sortie au format CSV, nettoyée de ce qu'il y a à nettoyer (notamment les liens au sein des articles)
+
+# La fonction personnalisée pour gagner du temps et de la lisibilité
+scrap <- function(page, node) {
+  page %>% html_nodes(node) %>% 
+    html_text2() %>% as.character() %>% paste(collapse = " --- ") %>% ifelse(. == "", NA, .)
+  }
+
+# On récupère de nouveau une liste de fichiers, ici les fichiers des articles HTML isolés un à un
+filesList <- paste0("data_html_cuts/", dir("data_html_cuts/", pattern = "*.html"))
+
+
+for (i in 1:length(filesList)) {
+  print(paste(i, "scraping"))
+  
+  # On crée un objet data.frame() qui sera le support de la suite
+  if (i == 1) {articles_raw <- data.frame()}
+  
+  html <- filesList[i]
+  page <- read_html(html)
+  
+  
+  journal       <- page %>% scrap(node = ".DocPublicationName") %>% 
+    str_split_i(pattern = ", ", i = 1)
+  
+  titre         <- page %>% scrap(node = ".titreArticle") 
+  
+  texte         <- page %>% scrap(node = ".clearfix")
+  
+  auteur        <- page %>% scrap(node = ".sm-margin-bottomNews") %>% 
+    ifelse(str_detect(., "---"), 
+           yes = str_split_i(string = ., pattern = "--- ", i = 2), 
+           no = .)
+  
+  header        <- page %>% scrap(node = ".rdp__DocHeader")
+  rubrique      <- header %>% str_split_i(pattern = ", ", i = 1)
+  date          <- header %>% str_split_i(pattern = ", ", i = 2) %>% as.Date(format = "%A %d %B %Y")
+  rubrique      <- ifelse(is.na(date), NA, rubrique)
+  date          <- ifelse(!is.na(date), date, header %>% as.Date(format = "%A %d %B %Y")) %>% as.Date()
+  
+  html <- sub("data_html_cuts/", "", html)
+  html <- sub(".html", "", html)
+  
+  articles_raw <- rbind(articles_raw, data.frame(html, journal, titre, date, rubrique, auteur, header, texte))
+  
+  rm(html, journal, titre, date, header, rubrique, texte, page, auteur)
+  
+  
+};rm(i, filesList)
+
+
+## On sauvegarde la première itération de notre base
+write_rds(articles_raw, file = "data/articles_raw.rds")
+```
+
+Voici par exemple, à quoi ressemble la première ligne (sans le texte de l'article) de notre base de données brute :
+
+```{r Exemple : ligne data, echo = FALSE}
+articles_raw[1, c(2,4, 6, 5, 7, 3, 8)] %>% mutate(titre = gsub("\n", " ", titre)) %>% gt() %>% tab_options()
+```
+
+### Nettoyage des données
+
+Un certain travail de nettoyage a été mené pour améliorer la qualité des données.
+
+Avant de détailler ces opérations, notons que certaines informations collectées ont été abandonnées en cours de traitement. L'auteur·rice de l'article et la rubrique dans lequel il a été publié n'ont en effet pas été utilisés par la suite. En cause, le degré très variable de renseignement de ces informations et l'impossibilité pratique de les utiliser, même en les recodant. Le problème est d'ailleurs assez bien visible dans l'extrait ci-dessus.
+
+La date de publication a pu être marginalement (3 cas) corrigée et les éditions locales des journaux régionaux ont été réunies.
+
+Le gros du nettoyage a porté sur le corps du texte de l'article. Les liens ont par exemple été supprimés. Plus spécifiquement, du fait d'erreurs de mise en page des documents HTML disponibles sur Europresse, il était parfois possible que la variable `texte` se soit retrouvée intégralement dans la variable `titre`. De même, le chapô de l'article, c'est-à-dire son paragraphe d'accroche, était lui aussi associé au titre. De ce fait, nous avons choisi d'analyser ensemble le `titre` et le `texte` de l'article, au sein d'une variable appelée `texte_titre`.
+
+À partir de là, nous avons calculé le nombre de mots contenu dans `texte_titre` pour imposer un filtre sur le nombre de mots minimum contenu dans les articles. Certains faisaient en effet état de manière très lapidaire d'un chiffre. Voici quelques exemples :
+
+```{r Exemple : lignes supprimées 250 mots, echo = FALSE}
+articles_raw[c(2:4) , c(2, 4, 3, 8)] %>% mutate(titre = gsub("\n", " ", titre)) %>% gt()
+```
+
+En plus d'être particulièrement court et donc de pas développer un fil argumentatif sur l'inflation, ces articles sont bien souvent des reprises de dépêches de l'Agence France Presse (AFP). Pour améliorer la qualité de notre corpus, nous avons ainsi sélectionné les articles qui dépassaient la longueur de 250 mots. Cependant, de ce fait, le nombre d'articles dans notre corpus diminue de près d'un quart.
+
+Aussi, toujours à partir de la proposition de Corentin Roquebert [@roquebert2018], nous avons essayé de mettre en œuvre la suppression de doublons d'articles, de manière moins poussée toutefois. En effet, nous nous limitons seulement à une comparaison entre le début de l'article et nous avons rajouté un critère de proximité temporelle (au plus 4 jours de différences entre deux articles). Le fait de ne pas considérer la fin de l'article tient essentiellement au fait que de certains articles ont un paragraphe conclusif qui resitue son auteur·rice dans son champ, notamment lorsqu'il ou elle est chercheur·euse. Or, si plusieurs articles ont utilisé le même paragraphe pour décrire un·e même auteur·rice plusieurs fois, alors la suppression d'un doublon fondé sur ce critère nous parait abusive. Seul le début de l'article est donc considéré, et nous appliquons un filtre de proximité temporelle pour ne pas sanctionner des articles qui certes reprenaient une introduction proche d'un autre article qui était par ailleurs complètement différent. De fait, il y a très peu de similarité croisée entre journaux, contrairement à ce que l'on pourrait croire si l'on considère que certains de leur article se fondent sur des dépêches AFP. Cela tient sans doute au filtre de longueur que l'on a imposé plus haut, qui nous amène à sélectionner des articles plus longs, donc plus travaillés et plus détaillés. Au total, 48 articles ont été détectés comme des doublons et ont donc été supprimés.
+
+```{r Table 1. Tableau composition journal avant-après 250 mots, echo = FALSE}
+articles_raw$journal_rec <- case_when(
+  str_detect(string = articles_raw$journal, pattern = "Ouest-France")           ~ "Ouest-France",
+  str_detect(string = articles_raw$journal, pattern = "Le Parisien")            ~ "Le Parisien",
+  str_detect(string = articles_raw$journal, pattern = "La Dépêche du Midi")     ~ "La Dépêche du Midi",
+  str_detect(string = articles_raw$journal, pattern = "L'Est Républicain")      ~ "L'Est Républicain",
+  str_detect(string = articles_raw$journal, pattern = "Aujourd'hui en France")  ~ "Aujourd'hui en France",
+  str_detect(string = articles_raw$journal, pattern = "La Tribune")             ~ "La Tribune",
+  str_detect(string = articles_raw$journal, pattern = "l'Humanité")             ~ "L'Humanité",
+  TRUE ~ articles_raw$journal)
+labelled::var_label(articles_raw$journal_rec) <- "Journal"
+
+articles_clean$journal_rec <- articles_clean$journal
+labelled::var_label(articles_clean$journal_rec) <- "Journal"
+
+table1.1 <- articles_raw %>% tbl_summary(include = journal_rec) %>% modify_header(label = "")
+table1.2 <- articles_clean %>% tbl_summary(include = journal_rec) %>% modify_header(label = "")
+
+table1 <- tbl_merge(list(table1.1, table1.2), 
+                    tab_spanner = c("**Avant le filtre**", "**Après le filtre**"))
+
+table1 %>% 
+  bold_labels() %>% 
+  # modify_caption(caption = "**Répartition du nombre d'articles par journal avant et après le filtrage des articles contenant moins de 250 mots**") %>% 
+  as_gt() %>% 
+  tab_options(table.width = pct(100)) %>%
+  tab_header(title = md("**Répartition du nombre d'articles par journal avant et après le filtrage des articles contenant moins de 250 mots**")) %>%
+  tab_footnote(md("**Note de lecture** : Avant le filtrage des articles contenant moins de 250 mots, le corpus d'articles sélectionnés contenait 4 773 articles, dont 277 articles  publiés dans le journal *Aujourd'hui en France*. Après ce filtrage, il reste 3 640 articles, dont 222 articles publiés dans *Aujourd'hui en France*.")) %>%
+  tab_footnote(md("**Source** : corpus Europresse constitué par nos soins."))
+
+```
+
+Aucune correction supplémentaire n'a été appliquée sur le corps du texte non découpé, ce qui correspond au script de nettoyage consultable ci-dessous.
+
+```{r 'sortie Europresse partie 3 - nettoyage', eval=FALSE}
+# Traitement des HTML de sortie d'Europresse - partie 3
+
+articles_raw <- read_rds(file = "data/articles_raw.rds")
+
+
+
+
+# Correction des dates si nécessaires
+
+articles_raw %>% filter(is.na(date)) %>% select(-texte)
+
+articles_raw$date[articles_raw$html == "article_2476"] <- articles_raw$header[articles_raw$html == "article_2476"] %>% str_split_i(pattern = ", ", i = 3) %>% as.Date(format = "%A %d %B %Y")
+articles_raw$date[articles_raw$html == "article_2911"] <- articles_raw$header[articles_raw$html == "article_2911"] %>% str_split_i(pattern = ", ", i = 3) %>% as.Date(format = "%A %d %B %Y")
+articles_raw$date[articles_raw$html == "article_3029"] <- articles_raw$header[articles_raw$html == "article_3029"] %>% str_split_i(pattern = ", ", i = 5) %>% as.Date(format = "%A %d %B %Y")
+
+articles_raw %>% select(-texte, -header) %>% filter(is.na(date)) 
+
+
+
+
+# Discrétisation par mois puis années
+
+articles_raw <- articles_raw %>% 
+  mutate(date_year  = cut(date, breaks = "year", labels = c("2020", "2021", "2022", "2023")),
+         date_month = cut(date, breaks = "month"))
+
+
+
+
+# Modification de certains éléments du texte
+
+## Suppression des liens dans le texte
+
+articles_raw$texte_clean <- gsub(x = articles_raw$texte, pattern = "\\http[^(\\))]+\\S+", replacement = "")
+articles_raw$texte_clean <- articles_raw$texte_clean %>% gsub(pattern = "\\(lien : http[^(\\))]+\\) ", replacement = "")
+articles_raw$texte_clean <- articles_raw$texte_clean %>% gsub(pattern = "(lien :", fixed = T, replacement = "")
+
+
+
+## Rajout du titre au sein du texte (voir étape sur le nombre de mots d'après pour comprendre d'où ça vient)
+articles_raw$texte_titre <- paste(articles_raw$titre, articles_raw$texte_clean, sep = "\n\n ----- \n\n")
+
+
+
+## Correction des noms de journaux
+
+articles_raw$journal  <- 
+  case_when(
+    str_detect(string = articles_raw$journal, pattern = "Ouest-France")           ~ "Ouest-France",
+    str_detect(string = articles_raw$journal, pattern = "Le Parisien")            ~ "Le Parisien",
+    str_detect(string = articles_raw$journal, pattern = "La Dépêche du Midi")     ~ "La Dépêche du Midi",
+    str_detect(string = articles_raw$journal, pattern = "L'Est Républicain")      ~ "L'Est Républicain",
+    str_detect(string = articles_raw$journal, pattern = "Aujourd'hui en France")  ~ "Aujourd'hui en France",
+    str_detect(string = articles_raw$journal, pattern = "La Tribune")             ~ "La Tribune",
+    str_detect(string = articles_raw$journal, pattern = "l'Humanité")             ~ "L'Humanité",
+    TRUE ~ articles_raw$journal)
+
+
+## Correction des rubriques
+
+articles_raw$rubrique  <- sub(pattern = "_", replacement = "", x = articles_raw$rubrique)
+
+
+
+
+
+# Calcul du nombre de mots dans chaque article
+articles_raw$words <- str_count(articles_raw$texte, ' ')
+# wildeR::distrib(articles_raw$words, precision = "D+E")
+
+## Il y a des observations avec des NA et certaines avec des 0 ...
+articles_raw %>% select(html, words, texte, titre) %>% filter(is.na(words)) %>% head(2) 
+## Si on regarde de plus près, on voit que le texte est contenu dans le titre ...
+## On corrige ça plus haut puis on calcule sur la nouvelle variable 'texte_clean'
+
+articles_raw$words <- str_count(articles_raw$texte_titre, ' ')
+# wildeR::distrib(articles_raw$words, precision = "D+E")
+
+
+# On sélectionne les articles qui sont plus de longs que 250 mots
+
+articles_raw <- articles_raw %>% filter(words > 249)
+
+
+
+
+
+
+
+
+# Vérification des doublons sur le début du texte
+
+articles_raw <- articles_raw %>%  
+  mutate(extrait_debut = str_sub(texte_clean, 1, 150))
+
+## Calcul des paires de distance
+
+dist <- stringdist::stringdistmatrix(articles_raw$extrait_debut) # C'est ici qu'a lieu le calcul de distance entre tous les textes.
+
+## Conversion en matrice 
+m_debut <- as.matrix(dist)
+m_debut[lower.tri(m_debut)] <- 1000 # Dans la matrice, on met 1000 comme valeur pour toutes les valeurs en dessous de la diagonale, pour éviter d'avoir deux fois la même mesure
+diag(m_debut) <- 1000 # Dans la matrice, on met 1000 comme valeur pour la diagonale pour ne pas enlever un texte parce qu'il ressemble à lui-même...
+
+## Sélection des paires proches
+indices_debut <- which(m_debut < 50, arr.ind = TRUE) # On regarde les positions pour lesquelles l'indice de dissimilarité est inférieure à 50. C'est ici donc qu'on fixe le seuil et qu'on peut le changer !  
+
+## Table pour vérifications
+test_debut <- cbind(articles_raw[indices_debut[, 1], c("html", "date", "journal", "extrait_debut")], 
+                    articles_raw[indices_debut[, 2], c("html", "date", "journal", "extrait_debut")])
+colnames(test_debut) <- c("html_1", "date_1", "journal_1", "extrait_debut_1", 
+                          "html_2", "date_2", "journal_2", "extrait_debut_2")
+
+test_debut <- test_debut %>%
+  mutate(dateProche = abs(date_1 - date_2) < 5,
+         sameTextDebut = extrait_debut_1 == extrait_debut_2) %>% 
+  relocate(dateProche, sameTextDebut) 
+
+indices_toRemove <- rownames(test_debut %>% subset(test_debut$dateProche)) %>% as.numeric()
+table(articles_raw$journal[indices_toRemove])
+
+articles_raw <- articles_raw[-c(indices_toRemove), ]
+
+```
+
+Enfin, lorsque nous avons voulu mettre en œuvre des classifications sur les paragraphes de notre corpus, nous nous sommes rendu compte que certains paragraphes polluaient notre analyse. Plus particulièrement, du fait que nous avons récupéré des articles mis en ligne, il y a parfois dans le corps du texte des renvois vers d'autres articles (« Lire aussi »). Aussi, certains paragraphes, très courts, évoquent le statut des personnes qui parlent (« X est professeur des universités... »), ou le contexte dans lequel l'article a pu être (« Toutes les semaines, X revient sur l'actualité... »). Dès lors, lorsque nous faisons une analyse du corpus en le découpant par paragraphe, nous enlevons ces paragraphes puisqu'ils polluent l'analyse. Toutefois, dans le cas des paragraphes de renvoi, il aurait pu être intéressant d'analyser les sujets avec lesquels l'inflation était mise en connexion, mais cela est un autre sujet.
+
+```{r corpus Lire aussi, eval = FALSE}
+corpus <- import_corpus("data/articles_clean2.csv", language="fr", format = "csv", textcolumn = 6)
+corpus_d <- split_documents(corpus, chunksize = 1)
+
+corpus_d <- corpus_d %>%
+  tm_filter(FUN = function(x) !grepl(x, pattern = "Lire aussi|lire aussi")) %>%
+  tm_filter(FUN = function(x) !grepl(x, pattern = "replay|Replay|BFM Marseille|BFM Nice|BFM Lyon")) %>%
+  tm_filter(FUN = function(x) !grepl(x, pattern = "LUMEN|HEC Paris")) %>%
+  tm_filter(FUN = function(x) !grepl(x, pattern = "Université Paris Dauphine"))
+```
+
+### Lemmatisation
+
+Une dernière opération préparatoire avant d'analyser notre corpus a été de le lemmatiser. Notre lemmatisation s'appuie sur le Lexique 3 développé entre autres par Boris New et Christophe Pallier (plus précisément, nous utilisons la version 3.82 du Lexique ; [lien vers le site internet du projet](http://www.lexique.org/)), et utilise d'abord la forme la plus utilisée dans les livres, puis celle-là plus utilisée dans les films. Dans les cas où il reste plusieurs formes entre lesquels choisir, on se résout à choisir au hasard parmi une forme. Des corrections ont été appliquées lorsque cette méthode donnait des résultats inattendus. Par exemple, le mot « hausse » a été lemmatisé « hausser » avec Lexique 3. Nous avons ainsi corrigé pour garder le nom commun « hausse ».
+
+Pour les termes non-reconnus par Lexique 3 (soit 2542 termes), on applique une lemmatisation personnalisée lorsqu'ils ont plus de 10 occurrences sur l'ensemble du corpus. Sinon, on ne lemmatise pas les termes.
+
+À noter que les termes ayant 5 ou moins occurrences n'ont pas été concernés par la lemmatisation, et ont été écartés de notre analyse, tout comme les mots-outils.
+
+```{r Lemmatisation, eval = FALSE}
+dic_dtm <- dictionary(dtm) %>% filter(Occurrences > 5)
+
+dtm_filtered <- dtm[, colnames(dtm) %in% rownames(dic_dtm)]
+ncol(dtm_filtered) # = 16403 termes différents
+
+
+# Uiliser le Lexique 3
+
+lexique3 <- read.csv(file = "data/Lexique383_simplifie.csv")
+
+
+## On garde les termes qui apparaissent dans le DTM
+lemmes_lex3 <- lexique3 %>% filter(ortho %in% colnames(dtm_filtered))
+
+# Comme Lexique 3 propose plusieurs lemmes pour un même mot, il faut bien en identifier un seul
+# Pour cela, on sélectionne d'abord celui qui est le plus fréquent dans les livres
+# Ensuite celui qui est plus fréquent dans les films
+# Si après cela, il reste plusieurs lemmes, on se résoud à tirer au sort
+lemmes_lex3 <- lemmes_lex3 %>%
+  group_by(ortho) %>% 
+  filter(freqlivres == max(freqlivres)) %>% 
+  filter(freqfilms2 == max(freqfilms2)) %>% 
+  sample_n(1) %>%
+  ungroup() %>% select(ortho, lemme)
+
+# A posteriori, on réalise que "hausse" a été lemmatisé "hausser" ...
+# Or, on veut garder "hausse"
+lemmes_lex3$lemme[lemmes_lex3$ortho == "hausse"] <- "hausse"
+
+
+# On met lemmes_lex3 au format attendu par la fonction combine_termes()
+# ie. un data.frame avec en rownames les termes dans le texte et en première variable le lemme
+lemmes_lex3 <- as.data.frame(lemmes_lex3)
+rownames(lemmes_lex3) <- lemmes_lex3$ortho
+lemmes_lex3$ortho <- NULL
+colnames(lemmes_lex3) <- "Term"
+
+
+
+## On regarde les termes qui n'ont pas été reconnus avec Lexique 3
+
+nr <- colnames(dtm_filtered)[!colnames(dtm_filtered) %in% rownames(lemmes_lex3)]
+length(nr) + nrow(lemmes_lex3) == ncol(dtm_filtered) # Vérification logique (n de termes non reconnus + n de termes reconnus = n colonnes dans le DTM)
+
+# On regarde plus précisément les termes qui n'ont pas été lemmatisés via Lexique 3
+# Puis on enregistre un CSV qu'on pourra modifier à la main pour faire notre propre lemmatisation
+dic_dtm[nr, ] %>% arrange(-Occurrences) %>% write.csv2(file = "data/toStem_articles.csv")
+
+# On importe le CSV qu'on a modifié à la main
+# Modification à la main pour tous les termes avec plus de 20 occurrences
+# Puis pour le reste, on ne lemmatise pas 
+lemmes_perso <- read.csv2(file = "data/Stemmed_articles.csv", row.names = 1)
+
+# On garde les termes qui sont bien dans le dtm 
+# certains termes sont absents du fait des paragraphes supprimés lors de la découpe
+lemmes_perso <- lemmes_perso[rownames(lemmes_perso) %in% colnames(dtm_filtered), ]
+
+# On met lemmes_perso au format attendu par la fonction combine_termes()
+lemmes_perso <- lemmes_perso[, 1:2]
+lemmes_perso$Occurrences <- NULL
+
+
+# On fusionne nos deux bases de lemmatisation
+lemmes <- rbind(lemmes_lex3, lemmes_perso)
+
+
+# On applique notre lemmatiseur 
+dtm_clean <- combine_terms(dtm_filtered, lemmes)
+```
+
+## D. Bilan lexical des données mobilisées
+
+Le corpus ainsi établi après nettoyage est composé de 3 640 articles différents (contre 4 773 articles téléchargés depuis Europresse). Les tableaux suivants permettent d'avoir une première description de notre corpus par année de publication des articles.
+
+::: panel-tabset
+### Après lemmatisation et découpe
+
+```{r Bilan lexical Après lemmatisation et découpe, echo=FALSE}
+figures$methodo_bilanLex_1 %>% 
+  gt(rownames_to_stub = T, locale = "fr") %>%
+  fmt_integer(rows = c(1, 2, 4, 6, 7, 8)) %>%
+  fmt_percent(rows = c(3, 5), scale_values = F, incl_space = T) %>% 
+  tab_header(title = md("**Description du corpus par année de publication des articles**")) %>%
+  tab_footnote(footnote = md("**Note de lecture :** Sur les 2 469 503 termes qui composent notre corpus, seuls 1 375 415 ont été retenus après la lemmatisation et après suppression des paragraphes en trop à l'occasion de la découpe du corpus. De plus, parmi les termes retenus, 671 303 concernent les articles écrits en 2022.")) %>% 
+  tab_options(table.width = pct(100)) %>%
+  cols_width(`2020` ~ pct(10),
+             `2021` ~ pct(10),
+             `2022` ~ pct(10),
+             `2023` ~ pct(10),
+             `Total` ~ pct(10)) %>%
+  tab_footnote(md("**Source** : corpus Europresse constitué par nos soins."))
+```
+
+### Après lemmatisation et sans découpe
+
+```{r Bilan lexical Après lemmatisation et sans découpe, echo=FALSE}
+figures$methodo_bilanLex_2 %>% 
+  gt(rownames_to_stub = T, locale = "fr") %>%
+  fmt_integer(rows = c(1, 2, 4, 6, 7)) %>%
+  fmt_percent(rows = c(3, 5), scale_values = F, incl_space = T) %>% 
+  tab_header(title = md("**Description du corpus par année de publication des articles**")) %>%
+  tab_footnote(footnote = md("**Note de lecture :** Sur les 2 484 878 termes qui composent notre corpus, seuls 1 385 711 ont été retenus après la lemmatisation . De plus, parmi les termes retenus, 675 900 concernent les articles écrits en 2022.")) %>% 
+  tab_options(table.width = pct(100)) %>%
+  cols_width(`2020` ~ pct(10),
+             `2021` ~ pct(10),
+             `2022` ~ pct(10),
+             `2023` ~ pct(10),
+             `Total` ~ pct(10)) %>%
+  tab_footnote(md("**Source** : corpus Europresse constitué par nos soins."))
+```
+
+### Sans lemmatisation ou découpe
+
+```{r Bilan lexical Sans lemmatisation ou découpe, echo=FALSE}
+figures$methodo_bilanLex_3 %>% 
+  gt(rownames_to_stub = T, locale = "fr") %>%
+  fmt_integer(rows = c(1, 2, 4, 6, 7)) %>%
+  fmt_percent(rows = c(3, 5), scale_values = F, incl_space = T) %>% 
+  tab_header(title = md("**Description du corpus par année de publication des articles**")) %>%
+  tab_footnote(footnote = md("**Note de lecture :** Sur les 2 484 878 termes qui composent notre corpus, 1 209 595 concernent les articles écrits en 2022.")) %>% 
+  tab_options(table.width = pct(100)) %>%
+  cols_width(`2020` ~ pct(10),
+             `2021` ~ pct(10),
+             `2022` ~ pct(10),
+             `2023` ~ pct(10),
+             `Total` ~ pct(10)) %>%
+  tab_footnote(md("**Source** : corpus Europresse constitué par nos soins."))
+```
+:::
+
+\newpage
+
+# II. Analyse du discours médiatique
+
+## A. Évolution dans le temps du traitement du « retour de l'inflation »
+
+### Quand l'inflation devient une information de premier plan
+
+L'un des premiers aspects qui saute aux yeux, quand on analyse notre corpus, est la corrélation entre le taux d'inflation et le nombre d'articles publiés chaque mois. Les deux courbes se suivent avec une forte corrélation. De janvier à juillet 2022 par exemple, le nombre d'articles a quasiment doublé. Toutefois, le nombre d'articles suit une logique de petits pics. Ils sont certainement liés aux sorties de rapports comme ceux de l'INSEE ou de la BCE, de dépêches comme celle de l'AFP, ou encore des effets d'échos entre les journalistes qui reprennent l'information d'autres médias.
+
+```{r Graph inflation vs nb articles, echo = F}
+
+colorInflation <- "red3"
+colorArticles  <- "green4"
+
+nameInflation <- "Taux d'inflation sur un an (%)"
+nameArticles <- "Nombre d'articles publiés dans le mois"
+
+
+figures$data_graph_inflation_nArticles[-48, ] %>%
+  ggplot() + 
+  geom_line(aes(x = date_month, y = n_articles), color = colorArticles,  linewidth = 0.8, na.rm = T) +
+  geom_line(aes(x = date_month, y = Value*25),   color = colorInflation, linewidth = 0.8, na.rm = T) + 
+  scale_y_continuous(name = nameArticles, breaks = 0:10*25, limits = c(-5, 200),
+                     sec.axis = sec_axis(~.*1/25, name = nameInflation, breaks = 0:10)) +
+  scale_x_date(breaks = figures$breaks_semestre,
+               labels = figures$breaks_semestre %>% format("%b %Y")) +
+  theme_minimal() +
+  theme(axis.title.y.right = element_text(color = colorInflation,  size = 13, face = "bold"),
+        axis.title.y       = element_text(color = colorArticles, size = 13, face = "bold"),
+        plot.title         = element_text(size = 16, face = "bold"),
+        plot.caption       = element_text(hjust = 0)) +
+  labs(title = "Couverture médiatique de l'inflation en fonction du taux d'inflation annuel annoncé",
+       caption = "Note de lecture : En janvier 2022, 93 articles ont publié avec le mot « inflation » dans leur titre. A cette même date, le taux d'inflation sur un an s'élèvait à 2,85 %. \nSource : corpus Europresse constitué par nos soins (nombre d'articles) et OCDE (taux d'inflation). ") +
+  xlab("")
+
+rm(colorInflation, colorArticles, nameInflation, nameArticles)
+```
+
+### Contenu de ce suivi médiatique de l'inflation
+
+Toutefois, notre objectif n'est pas seulement de mesurer l'intensité médiatique, mais bien d'essayer d'analyser les mots de l'inflation. On observe que cette intensité médiatique sur l'inflation est très liée avec la guerre en Ukraine. Le début de la guerre en Ukraine, le 24 février 2022 se retrouve dans notre corpus, et sur le graphique ci-dessous, avec un pic lors de l'hiver 2022, où l'énergie devient de plus en plus chère. Les journalistes se focalisent donc d'abord sur les causes de cet événement économique.
+
+```{r Fonctions searchMots_freq et searchMots_occ}
+searchMots_freq <- function(data, varTime = "date", mots, period = "month", xlim = NULL, ylim = 0:1, x_breaks = NULL, center_period = 0) {
+  
+  mots_ <- tolower(mots)
+  data <- data %>% mutate(date_break = cut(get(varTime), breaks = period, ordered_result = F),
+                          date_break = as.Date(date_break),
+                          texte_titre = tolower(texte_titre))
+  
+  if (is.null(x_breaks)) {x_breaks <- c(unique(data$date_break) %>% as.numeric(), 19723) %>% as_date()}
+
+  data_mots <- unique(data$date_break) %>% sort %>% data.frame(date_break = .)
+  data_mots$n_articles <- table(data$date_break)
+  
+  for (i in 1:length(mots_)) {
+    data[, paste0("n_citations", i)] <- grepl(pattern = mots_[i], x = data$texte_titre)
+    data_mots <- cbind(data_mots, tapply(data[, paste0("n_citations", i)], data$date_break, sum))
+    colnames(data_mots)[i + 2] <- paste0("n_citations", i)
+  }
+  
+  
+  data_mots_long <- data_mots %>%
+    pivot_longer(cols = starts_with("n_citations"), values_to = "freq", names_to = "index_word", names_prefix = "n_citations") %>%
+    mutate(freq = freq/n_articles)
+  
+  data_mots_long$mot <- sapply(data_mots_long$index_word, function(x) {mots[as.numeric(x)]})
+  data_mots_long$mot <- factor(data_mots_long$mot, levels = mots)
+
+  plot <- ggplot(data_mots_long) +
+    aes(x = date_break + period(center_period), y = freq, color = mot) +
+    geom_line(linewidth = 0.8) +
+    scale_y_continuous(name = "Proportion d'articles mentionnant le mot correspondant", 
+                       breaks = 0:10*(0.1), limits = ylim) +
+    scale_x_date(breaks = x_breaks, labels = x_breaks %>% format("%b %Y"), limits = xlim)
+
+  return(plot)
+}
+
+searchMots_occ <- function(data, varTime = "date", mots, period = "month", xlim = NULL, ylim = 0:1, x_breaks = NULL, center_period = 0) {
+  
+  mots_ <- tolower(mots)
+  data <- data %>% mutate(date_break = cut(get(varTime), breaks = period, ordered_result = F),
+                          date_break = as.Date(date_break),
+                          texte_titre = tolower(texte_titre),
+                          words = str_count(texte_titre, " ") + 1)
+  
+  if (is.null(x_breaks)) {x_breaks <- c(unique(data$date_break) %>% as.numeric(), 19723) %>% as_date()}
+  
+  data_mots <- unique(data$date_break) %>% sort %>% data.frame(date_break = .)
+  data_mots$n_words <- data %>% group_by(date_break) %>% 
+    mutate(n_words = sum(words)) %>% ungroup() %>% 
+    select(date_break, n_words) %>% distinct() %>% pull(n_words)
+  
+  
+  for (i in 1:length(mots)) {
+    data[, paste0("n_citations", i)] <- str_count(pattern = mots_[i], string = data$texte_titre)
+    data_mots <- cbind(data_mots, tapply(data[, paste0("n_citations", i)], data$date_break, sum))
+    colnames(data_mots)[i + 2] <- paste0("n_citations", i)
+  }
+  
+  
+  data_mots_long <- data_mots %>%
+    pivot_longer(cols = starts_with("n_citations"), values_to = "freq", names_to = "index_word", names_prefix = "n_citations") %>%
+    mutate(freq = freq/n_words)
+  
+  data_mots_long$mot <- sapply(data_mots_long$index_word, function(x) {mots[as.numeric(x)]})
+  data_mots_long$mot <- factor(data_mots_long$mot, levels = mots)
+  
+  plot <- ggplot(data_mots_long) +
+    aes(x = date_break + period(center_period), y = freq, color = mot) +
+    geom_line(linewidth = 0.8) +
+    scale_y_continuous(name = "Fréquence du mot parmi tous les mots", limits = c(0, max(data_mots_long$freq)*1.1)) +
+    scale_x_date(breaks = x_breaks, labels = x_breaks %>% format("%b %Y"), limits = xlim)
+  return(plot)
+}
+```
+
+```{r, echo = F}
+# searchMots_occ(data = articles_clean, period = "6 months", center_period = "3 months",
+#                 x_breaks = figures$breaks_annee, xlim = c(min(figures$breaks_annee), max(figures$breaks_annee)),
+#                 mots = c("Ukraine", "production", "énergie", "consommation", "Covid", "Chine", "salaire")) +
+#     theme_minimal() +
+#     theme(axis.title.y       = element_text(size = 13, face = "bold"),
+#           plot.title         = element_text(size = 16, face = "bold"),
+#           legend.text        = element_text(size = 11),
+#           legend.title       = element_text(size = 12)) +
+#     labs(title = "Fréquence du mot correspondant parmi tous les mots au cours du temps") +
+#     xlab("")
+
+searchMots_freq(data = articles_clean, period = "2 months", center_period = "1 month",
+                x_breaks = figures$breaks_annee, xlim = c(min(figures$breaks_annee), max(figures$breaks_annee)),
+                mots = c("Ukraine", "production", "énergie", "consommation", "salaire")) +
+    labs(title = "Part des articles mentionnant le mot correspondant au cours du temps",
+         caption = "Note de lecture : En mars et avril 2022, le mot « Ukraine » était présent dans un peu plus de 75 % des articles du corpus. \nSource : corpus Europresse constitué par nos soins (nombre d'articles) et OCDE (taux d'inflation).") +
+    xlab("") +
+    theme_minimal() +
+    theme(axis.title.y       = element_text(size = 13, face = "bold"),
+          plot.title         = element_text(size = 16, face = "bold"),
+          legend.text        = element_text(size = 11),
+          legend.title       = element_text(size = 12),
+          plot.caption       = element_text(hjust = 0))
+
+# searchMots_occ(data = articles_clean, period = "2 months", center_period = "1 month",
+#                 x_breaks = figures$breaks_annee, xlim = c(min(figures$breaks_annee), max(figures$breaks_annee)),
+#                 mots = c("Ukraine", "production", "énergie", "consommation", "ménage", "Covid", "Chine", "salaire"))
+
+```
+
+### Un vocabulaire spécifique qui évolue dans le temps
+
+#### Analyse des spécificités selon l'année de publication
+
+::: panel-tabset
+#### 2023
+
+```{r, echo=FALSE}
+figures$specific_terms_year$`2023` %>% 
+  as.data.frame.matrix() %>%
+  gt(rownames_to_stub = T, locale = "fr") %>%
+  fmt_percent(columns = 2:4, scale_values = F, incl_space = T) %>%
+  tab_footnote(md("**Note de lecture** : Le mot  « agroalimentaire » est très spécifique à l'année 2023. En effet, 224 occurrences sur les 356 occurrences du mot « agroalimentaire » sur l'ensemble du corpus sont issues des articles de cette année-là. Ces occurrences représentent 62,92%	des occurrences totales du mot sur tout le corpus.")) %>% 
+  tab_options(table.width = pct(100)) %>%
+  cols_width(1 ~ pct(25), 2:3 ~ pct(13), 4 ~ pct(10), 5 ~ pct(8), 6 ~ pct(10), 7:8 ~ pct(8)) %>%
+  tab_footnote(md("**Source** : corpus Europresse constitué par nos soins."))
+```
+
+#### 2022
+
+```{r, echo=FALSE}
+figures$specific_terms_year$`2022` %>% 
+  as.data.frame.matrix() %>%
+  gt(rownames_to_stub = T, locale = "fr") %>%
+  fmt_percent(columns = 2:4, scale_values = F, incl_space = T) %>%
+  tab_footnote(md("**Note de lecture** : Le mot  « bouclier » est très spécifique à l'année 2022. En effet, 374 occurrences sur les 560 occurrences du mot « bouclier » sur l'ensemble du corpus sont issues des articles de cette année-là. Ces occurrences représentent 66,79% des occurrences totales du mot sur tout le corpus.")) %>% 
+  tab_options(table.width = pct(100)) %>%
+  cols_width(1 ~ pct(25), 2:3 ~ pct(13), 4 ~ pct(10), 5 ~ pct(8), 6 ~ pct(10), 7:8 ~ pct(8)) %>%
+  tab_footnote(md("**Source** : corpus Europresse constitué par nos soins."))
+```
+
+#### 2021
+
+```{r, echo=FALSE}
+figures$specific_terms_year$`2021` %>% 
+  as.data.frame.matrix() %>%
+  gt(rownames_to_stub = T, locale = "fr") %>%
+  fmt_percent(columns = 2:4, scale_values = F, incl_space = T)  %>%
+  tab_footnote(md("**Note de lecture** : Le mot  « accommodant » est très spécifique à l'année 2021. En effet, 73 occurrences sur les 170 occurrences du mot « accommodant » sur l'ensemble du corpus sont issues des articles de cette année-là. Ces occurrences représentent 42,94% des occurrences totales du mot sur tout le corpus.")) %>% 
+  tab_options(table.width = pct(100)) %>%
+  cols_width(1 ~ pct(25), 2:3 ~ pct(13), 4 ~ pct(10), 5 ~ pct(8), 6 ~ pct(10), 7:8 ~ pct(8)) %>%
+  tab_footnote(md("**Source** : corpus Europresse constitué par nos soins."))
+```
+
+#### 2020
+
+```{r, echo=FALSE}
+figures$specific_terms_year$`2020` %>% 
+  as.data.frame.matrix() %>%
+  gt(rownames_to_stub = T, locale = "fr") %>%
+  fmt_percent(columns = 2:4, scale_values = F, incl_space = T)  %>%
+  tab_footnote(md("**Note de lecture** : Le mot  « coronavirus » est très spécifique à l'année 2020. En effet, 20 occurrences sur les 68 occurrences du mot « coronavirus » sur l'ensemble du corpus sont issues des articles de cette année-là. Ces occurrences représentent 29,41% des occurrences totales du mot sur tout le corpus.")) %>% 
+  tab_options(table.width = pct(100)) %>%
+  cols_width(1 ~ pct(25), 2:3 ~ pct(13), 4 ~ pct(10), 5 ~ pct(8), 6 ~ pct(10), 7:8 ~ pct(8)) %>%
+  tab_footnote(md("**Source** : corpus Europresse constitué par nos soins."))
+```
+:::
+
+Nous avons essayé de voir le vocabulaire spécifique pour chaque année, en ce qui concerne l'inflation. Ce qui est très marquant, c'est le changement de perspective entre 2022 et 2023. En 2022, le traitement médiatique se focalise spécifiquement sur les causes de l'inflation, avec les mots « guerre », « Ukraine », « Russie » et les répercussions sur les prix de l'énergie avec les mots « gaz » et « bouclier énergétique », avec une forte co-occurrence. Puis, en 2023, le thème principal est le pouvoir d'achat avec des thématiques comme l'alimentation et la grande distribution avec les mots « agroalimentaire », « alimentaire », «distribution », « commercial ». Il y a donc deux étapes de ce traitement médiatique, une année où les journalistes se concentrent sur les causes, puis la suivante sur les conséquences.
+
+Or, ce cadrage de l'information est déjà une information passionnante. En effet, l'économiste Paul Anthony Samuelson explique qu'il peut exister en économie un « sophisme de composition » : on ne voit qu'une seule des dimensions d'un phénomène économique, alors que celui-ci a toujours deux faces [@samuelson1995]. Traiter des causes ou des conséquences est donc un sophisme de composition, un cadrage de l'information. Nous pouvons l'expliquer par des effets d'influences entre les médias, avec des liens forts [@granovetter2000] entre les journalistes économiques et une forte interconnaissance dans le milieu. De même, les journalistes se lisent mutuellement et cadrent alors l'information de la même manière.
+
+Cette analyse générale sur le cadrage de l'information, nous aide à comprendre le processus global du champ médiatique, mais ne nous dit pas encore les différences entre ces médias et les divergences d'analyse de l'information économique.
+
+## B. Ce que les mots de l'inflation disent de l'espace médiatique
+
+Nous avons commencé notre étude des divergences grâce à une analyse des spécificités pour chaque journal.
+
+### Analyse des spécificités pour chaque journal
+
+::: panel-tabset
+#### L'Est Républicain
+
+```{r, echo=FALSE}
+figures$specific_terms_journaux$`L'Est Républicain` %>% 
+  as.data.frame.matrix() %>%
+  gt(rownames_to_stub = T, locale = "fr") %>%
+  fmt_percent(columns = 2:4, scale_values = F, incl_space = T) %>%
+  tab_footnote(md("**Note de lecture** : Le mot  « besançon » est très spécifique à *L'Est Republicain*. En effet, 27 occurrences sur les 32 occurrences du mot « besançon » sur l'ensemble du corpus sont issues des articles du journal *L'Est Republicain*. Ces occurrences dans ce journal représentent 84,38% des occurrences totales sur tout le corpus.")) %>% 
+  tab_options(table.width = pct(100)) %>%
+  cols_width(1 ~ pct(25), 2:3 ~ pct(13), 4 ~ pct(10), 5 ~ pct(8), 6 ~ pct(10), 7:8 ~ pct(8)) %>%
+  tab_footnote(md("**Source** : corpus Europresse constitué par nos soins."))
+```
+
+#### La Dépêche du Midi
+
+```{r, echo=FALSE}
+figures$specific_terms_journaux$`La Dépêche du Midi` %>% 
+  as.data.frame.matrix() %>%
+  gt(rownames_to_stub = T, locale = "fr") %>%
+  fmt_percent(columns = 2:4, scale_values = F, incl_space = T)  %>%
+  tab_footnote(md("**Note de lecture** : Le mot  « animal » est très spécifique à *La Dépêche du Midi*. En effet, 35 occurrences sur les 169 occurrences du mot « animal » sur l'ensemble du corpus sont issues des articles du journal *La Dépêche du Midi*. Ces occurrences dans ce journal représentent 20,71% des occurrences totales sur tout le corpus.")) %>% 
+  tab_options(table.width = pct(100)) %>%
+  cols_width(1 ~ pct(25), 2:3 ~ pct(13), 4 ~ pct(10), 5 ~ pct(8), 6 ~ pct(10), 7:8 ~ pct(8)) %>%
+  tab_footnote(md("**Source** : corpus Europresse constitué par nos soins."))
+```
+
+#### Ouest-France
+
+```{r, echo=FALSE}
+figures$specific_terms_journaux$`Ouest-France` %>% 
+  as.data.frame.matrix() %>%
+  gt(rownames_to_stub = T, locale = "fr") %>%
+  fmt_percent(columns = 2:4, scale_values = F, incl_space = T) %>%
+  tab_footnote(md("**Note de lecture** : Le mot  « acheter » est très spécifique à *Ouest-France*. En effet, 150 occurrences sur les 1125 occurrences du mot « acheter » sur l'ensemble du corpus sont issues des articles du journal *Ouest-France*. Ces occurrences dans ce journal représentent 13,33% des occurrences totales sur tout le corpus.")) %>% 
+  tab_options(table.width = pct(100)) %>%
+  cols_width(1 ~ pct(25), 2:3 ~ pct(13), 4 ~ pct(10), 5 ~ pct(8), 6 ~ pct(10), 7:8 ~ pct(8)) %>%
+  tab_footnote(md("**Source** : corpus Europresse constitué par nos soins."))
+```
+
+#### Aujourd'hui en France
+
+```{r, echo=FALSE}
+figures$specific_terms_journaux$`Aujourd'hui en France` %>% 
+  as.data.frame.matrix() %>%
+  gt(rownames_to_stub = T, locale = "fr") %>%
+  fmt_percent(columns = 2:4, scale_values = F, incl_space = T)  %>%
+  tab_footnote(md("**Note de lecture** : Le mot  « acheter » est très spécifique à *Aujourd'hui en France*. En effet, 147 occurrences sur les 1125 occurrences du mot « acheter » sur l'ensemble du corpus sont issues des articles du journal *Aujourd'hui en France*. Ces occurrences dans ce journal représentent 13,07 % des occurrences totales sur tout le corpus.")) %>% 
+  tab_options(table.width = pct(100)) %>%
+  cols_width(1 ~ pct(25), 2:3 ~ pct(13), 4 ~ pct(10), 5 ~ pct(8), 6 ~ pct(10), 7:8 ~ pct(8)) %>%
+  tab_footnote(md("**Source** : corpus Europresse constitué par nos soins."))
+```
+
+#### Le Parisien
+
+```{r, echo=FALSE}
+figures$specific_terms_journaux$`Le Parisien` %>% 
+  as.data.frame.matrix() %>%
+  gt(rownames_to_stub = T, locale = "fr") %>%
+  fmt_percent(columns = 2:4, scale_values = F, incl_space = T)  %>%
+  tab_footnote(md("**Note de lecture** : Le mot  « collectivité » est très spécifique au journal  *Le Parisien*. En effet, 52 occurrences sur les 362 occurrences du mot « collectivité » sur l'ensemble du corpus sont issues des articles du journal *Le Parisien*. Ces occurrences dans ce journal représentent 14,36% des occurrences totales sur tout le corpus.")) %>% 
+  tab_options(table.width = pct(100)) %>%
+  cols_width(1 ~ pct(25), 2:3 ~ pct(13), 4 ~ pct(10), 5 ~ pct(8), 6 ~ pct(10), 7:8 ~ pct(8)) %>%
+  tab_footnote(md("**Source** : corpus Europresse constitué par nos soins."))
+```
+
+#### L'Humanité
+
+```{r, echo=FALSE}
+figures$specific_terms_journaux$`L'Humanité` %>% 
+  as.data.frame.matrix() %>%
+  gt(rownames_to_stub = T, locale = "fr") %>%
+  fmt_percent(columns = 2:4, scale_values = F, incl_space = T)  %>%
+  tab_footnote(md("**Note de lecture** : Le mot  « actionnaire » est très spécifique à *L'Humanité*. En effet, 27 occurrences sur les 153 occurrences du mot « actionnaire » sur l'ensemble du corpus sont issues des articles du journal *L'Humanité*. Ces occurrences dans ce journal représentent 17,65 % des occurrences totales sur tout le corpus.")) %>% 
+  tab_options(table.width = pct(100)) %>%
+  cols_width(1 ~ pct(25), 2:3 ~ pct(13), 4 ~ pct(10), 5 ~ pct(8), 6 ~ pct(10), 7:8 ~ pct(8)) %>%
+  tab_footnote(md("**Source** : corpus Europresse constitué par nos soins."))
+```
+
+#### Le Figaro
+
+```{r, echo=FALSE}
+figures$specific_terms_journaux$`Le Figaro` %>% 
+  as.data.frame.matrix() %>%
+  gt(rownames_to_stub = T, locale = "fr") %>%
+  fmt_percent(columns = 2:4, scale_values = F, incl_space = T)  %>%
+  tab_footnote(md("**Note de lecture** : Le mot  « decathlon » est très spécifique au journal *Le Figaro*. En effet, 37 occurrences sur les 47 occurrences du mot « decathlon » sur l'ensemble du corpus sont issues des articles du journal *Le Figaro*. Ces occurrences dans ce journal représentent 72,34 % des occurrences totales sur tout le corpus.")) %>% 
+  tab_options(table.width = pct(100)) %>%
+  cols_width(1 ~ pct(25), 2:3 ~ pct(13), 4 ~ pct(10), 5 ~ pct(8), 6 ~ pct(10), 7:8 ~ pct(8)) %>%
+  tab_footnote(md("**Source** : corpus Europresse constitué par nos soins."))
+```
+
+#### Les Echos
+
+```{r, echo=FALSE}
+figures$specific_terms_journaux$`Les Echos` %>% 
+  as.data.frame.matrix() %>%
+  gt(rownames_to_stub = T, locale = "fr") %>%
+  fmt_percent(columns = 2:4, scale_values = F, incl_space = T)  %>%
+  tab_footnote(md("**Note de lecture** : Le mot  « banque » est très spécifique à *Les Echos*. En effet, 1047 occurrences sur les 4710 occurrences du mot « banque » sur l'ensemble du corpus sont issues des articles du journal *Les Echos*. Ces occurrences dans ce journal représentent 22,23% des occurrences totales sur tout le corpus.")) %>% 
+  tab_options(table.width = pct(100)) %>%
+  cols_width(1 ~ pct(25), 2:3 ~ pct(13), 4 ~ pct(10), 5 ~ pct(8), 6 ~ pct(10), 7:8 ~ pct(8)) %>%
+  tab_footnote(md("**Source** : corpus Europresse constitué par nos soins."))
+```
+
+#### La Tribune
+
+```{r, echo=FALSE}
+figures$specific_terms_journaux$`La Tribune` %>% 
+  as.data.frame.matrix() %>%
+  gt(rownames_to_stub = T, locale = "fr") %>%
+  fmt_percent(columns = 2:4, scale_values = F, incl_space = T)  %>%
+  tab_footnote(md("**Note de lecture** : Le mot  « afp » est très spécifique à *La Tribune*. En effet, 384 occurrences sur les 410 occurrences du mot « afp » sur l'ensemble du corpus sont issues des articles du journal *La Tribune*. Ces occurrences dans ce journal représentent 93,66% des occurrences totales sur tout le corpus.")) %>% 
+  tab_options(table.width = pct(100)) %>%
+  cols_width(1 ~ pct(25), 2:3 ~ pct(13), 4 ~ pct(10), 5 ~ pct(8), 6 ~ pct(10), 7:8 ~ pct(8)) %>%
+  tab_footnote(md("**Source** : corpus Europresse constitué par nos soins."))
+```
+
+#### Le Monde
+
+```{r, echo=FALSE}
+figures$specific_terms_journaux$`Le Monde` %>% 
+  as.data.frame.matrix() %>%
+  gt(rownames_to_stub = T, locale = "fr") %>%
+  fmt_percent(columns = 2:4, scale_values = F, incl_space = T)  %>%
+  tab_footnote(md("**Note de lecture** : Le mot  « correspondant » est très spécifique à *Le Monde*. En effet, 87 occurrences sur les 143 occurrences du mot « correspondant » sur l'ensemble du corpus sont issues des articles du journal *Le Monde*. Ces occurrences dans ce journal représentent 60,84% des occurrences totales sur tout le corpus.")) %>% 
+  tab_options(table.width = pct(100)) %>%
+  cols_width(1 ~ pct(25), 2:3 ~ pct(13), 4 ~ pct(10), 5 ~ pct(8), 6 ~ pct(10), 7:8 ~ pct(8)) %>%
+  tab_footnote(md("**Source** : corpus Europresse constitué par nos soins."))
+```
+
+#### Le Point
+
+```{r, echo=FALSE}
+figures$specific_terms_journaux$`Le Point` %>% 
+  as.data.frame.matrix() %>%
+  gt(rownames_to_stub = T, locale = "fr") %>%
+  fmt_percent(columns = 2:4, scale_values = F, incl_space = T)  %>%
+  tab_footnote(md("**Note de lecture** : Le mot  « carbone » est très spécifique au journal *Le Point*. En effet, 23 occurrences sur les 125 occurrences du mot « carbone » sur l'ensemble du corpus sont issues des articles du journal *Le Point*. Ces occurrences dans ce journal représentent 18,40% des occurrences totales sur tout le corpus.")) %>% 
+  tab_options(table.width = pct(100)) %>%
+  cols_width(1 ~ pct(25), 2:3 ~ pct(13), 4 ~ pct(10), 5 ~ pct(8), 6 ~ pct(10), 7:8 ~ pct(8)) %>%
+  tab_footnote(md("**Source** : corpus Europresse constitué par nos soins."))
+```
+
+#### Libération
+
+```{r, echo=FALSE}
+figures$specific_terms_journaux$Libération %>% 
+  as.data.frame.matrix() %>%
+  gt(rownames_to_stub = T, locale = "fr") %>%
+  fmt_percent(columns = 2:4, scale_values = F, incl_space = T)  %>%
+  tab_footnote(md("**Note de lecture** : Le mot  « policier » est très spécifique à *Libération*. En effet, 10 occurrences sur les 36 occurrences du mot « policier » sur l'ensemble du corpus sont issues des articles du journal *Libération*. Ces occurrences dans ce journal représentent 27,78% des occurrences totales sur tout le corpus.")) %>% 
+  tab_options(table.width = pct(100)) %>%
+  cols_width(1 ~ pct(25), 2:3 ~ pct(13), 4 ~ pct(10), 5 ~ pct(8), 6 ~ pct(10), 7:8 ~ pct(8)) %>%
+  tab_footnote(md("**Source** : corpus Europresse constitué par nos soins."))
+```
+
+#### L'Express
+
+```{r, echo=FALSE}
+figures$specific_terms_journaux$`L'Express` %>% 
+  as.data.frame.matrix() %>%
+  gt(rownames_to_stub = T, locale = "fr") %>%
+  fmt_percent(columns = 2:4, scale_values = F, incl_space = T)  %>%
+  tab_footnote(md("**Note de lecture** : Le mot  « actif » est très spécifique à *L'Express*. En effet, 32 occurrences sur les 679 occurrences du mot « actif » sur l'ensemble du corpus sont issues des articles du journal *L'Express*. Ces occurrences dans ce journal représentent 4,71% des occurrences totales sur tout le corpus.")) %>% 
+  tab_options(table.width = pct(100)) %>%
+  cols_width(1 ~ pct(25), 2:3 ~ pct(13), 4 ~ pct(10), 5 ~ pct(8), 6 ~ pct(10), 7:8 ~ pct(8)) %>%
+  tab_footnote(md("**Source** : corpus Europresse constitué par nos soins."))
+```
+
+#### Valeurs Actuelles
+
+```{r, echo=FALSE}
+figures$specific_terms_journaux$`Valeurs Actuelles` %>% 
+  as.data.frame.matrix() %>%
+  gt(rownames_to_stub = T, locale = "fr") %>%
+  fmt_percent(columns = 2:4, scale_values = F, incl_space = T)  %>%
+  tab_footnote(md("**Note de lecture** : Le mot  « leclerc » est très spécifique à *Valeurs Actuelles*. En effet, 22 occurrences sur les 507 occurrences du mot « leclerc » sur l'ensemble du corpus sont issues des articles du journal *Valeurs Actuelles*. Ces occurrences dans ce journal représentent 4,34% des occurrences totales sur tout le corpus.")) %>% 
+  tab_options(table.width = pct(100)) %>%
+  cols_width(1 ~ pct(25), 2:3 ~ pct(13), 4 ~ pct(10), 5 ~ pct(8), 6 ~ pct(10), 7:8 ~ pct(8)) %>%
+  tab_footnote(md("**Source** : corpus Europresse constitué par nos soins."))
+```
+:::
+
+Ce qui est le plus frappant, dans cette analyse des spécificités est évidemment la différence entre les médias nationaux et régionaux. Bien entendu, les références aux régions sont très nombreuses et sont une spécificité des médias régionaux avec des mots spécifiques comme « Besançon », « Nancy », « lorrain », pour *L'Est Républicain*.
+
+Ensuite, ce qui nous intéresse un peu plus ce sont les différents mots utilisés pour parler de ce retour de l'inflation. Essayons donc de comparer les résultats *L'Humanité*, *Les Echos* et *Le Figaro.*
+
+*L'Humanité* a un cadrage un peu différent des autres journaux, en ce qu'il se concentre sur les marchés financiers avec des mots comme « actionnaire », « dividende » et « spéculation » et sur les partis ou mouvements politiques de gauche, voire d'extrême gauche avec des mots spécifiques comme le « pcf » et la « nupes ». Ce journal comprend, plus que les autres, l'inflation comme un phénomène de spéculation monétaire, mais aussi comme un choix de politique monétaire. Il y a dans ce journal une place importante donnée aux effets différenciés de l'inflation sur le pouvoir d'achat avec les mots « vacances », « populaire », « inégalité », « patrimoine » et « salaire ».
+
+Le journal *Le Figaro* a quant à lui une analyse de l'inflation avec beaucoup de références à des marques comme « decathlon », « nestle », « unilever ». On peut penser que le journal regarde ce qui se passe pour les entreprises et le secteur de la grande distribution. Il y a donc une « vision par le bas » de l'économie, assez décorrélée des politiques économiques de l'État et plus centrée sur les effets sur les entreprises donc des effets micro-économiques.
+
+Le journal *Les Echos* se concentre lui, beaucoup plus sur les politiques économiques des grandes institutions comme on le voit avec les mots comme « banque », « centrale » et « cible ». Ce dernier mot signifie les cibles d'inflation déterminées par la BCE.
+
+Grâce à cette analyse, on remarque que les positions politiques des journaux ont des effets clairs sur le cadrage de l'information et sur leur échelle d'analyse. Toutefois, il nous manque des informations sur la proximité des journaux et leur traitement journalistes. Nous avons les prises des positions sans comprendre l'espace des prises de positions, les affinités électives éventuelles entre les journaux et sans comprendre les évolutions de ce traitement dans le temps. Pour cela, il nous faut enfin faire une classification.
+
+### Classification des paragraphes des articles sur le retour de l'inflation
+
+```{r rainette, message = FALSE, warning = FALSE, echo=TRUE}
+dtm <- readRDS("data/cut_dtm_Articles_clean.rds")
+n_terms <- rowSums(dtm %>% as.matrix())
+dtmQ <- dtm[n_terms > 9, ] %>% quanteda::as.dfm()
+rainette::rainette_plot(figures$rai_cut_res, dtm = dtmQ, k = 10)
+```
+
+La classification, dont le résultat est affiché ci-dessus, a été réalisée sur les paragraphes de notre corpus, et ne concerne que les paragraphes qui sont composés d'au moins 10 mots. Ce critère a été imposé afin de s'assurer que des petits paragraphes, comme des titres ou des noms de journalistes, ne soient pas constitués en classe, ce qui nuirait grandement à la qualité du *clustering*. Des clusters à trop faible effectif étaient en effet proposés.
+
+#### Reconnaissance des groupes
+
+Grâce à cette classification, on peut remarquer 10 sous-groupes de paragraphes Le groupe 1 correspond aux discours sur le pouvoir d'achat des consommateurs et aux budgets des familles, le groupe 2 aux discours sur les entreprises et à la production, le groupe 3 à ceux sur les salaires et les enjeux de revalorisations salariales. Le groupe 4 fait référence aux lois et aux débats politiques. Le groupe 5 répond à des questions plus locales sur le logement et la ville. Le groupe 6 est une réaction à la sortie du rapport de l'INSEE, quand le groupe 7 fait référence à la guerre en Ukraine et la montée des prix de l'énergie. Enfin, le groupe 8 comprend les paragraphes sur les spéculations et les effets sur les marchés financiers, le groupe 9 ceux sur l'endettement de la France face à l'inflation et à ses politiques budgétaires et enfin le groupe 9 traite des politiques monétaires de la BCE.
+
+Nous donnerons les noms suivant aux dix groupes de paragraphes :
+
+-   (1 - acheter-petit) Pouvoir d'achat des consommateurs  
+-   (2 - produire-marque) Production des entreprises  
+-   (3 - salarié-prime) Revalorisations salariales  
+-   (4 - député-ministre) Débats politiques  
+-   (5 - municipal-ville) Ville et logement  
+-   (6 - insee-atteindre) Rapports de l'INSEE  
+-   (7 - ukraine-pétrole) Ukraine et énergie  
+-   (8 - nasdaq-dow) Marchés financiers  
+-   (9 - dette- état) Dette et politique budgétaire et enfin  
+-   (10 - taux-bce) Politique monétaire BCE
+
+#### Des thématiques spécifiques à des périodes
+
+```{r tableau contrib date, echo=FALSE}
+classes_date <- table(figures$rai_cut_meta$date_semestre, 
+      figures$rai_cut_meta$cluster_10 %>% 
+        factor(x = ., labels = sapply(rainette::rainette_stats(., dtm = dtmQ), function(x) paste0(x[1,1], "-", x[2,1])))) %>%
+  lprop() %>% as.data.frame.matrix() 
+rownames(classes_date) <- c("S1 2020", "S2 2020", "S1 2021", "S2 2021", "S1 2022", "S2 2022", "S1 2023", "S2 2023", "Ensemble")
+
+classes_date %>% 
+  gt(rownames_to_stub = T, locale = "fr")  %>% 
+  tab_header(title = md("**Répartition des paragraphes publiés par semestre selon la classe affectée par la classification Reinert**")) %>%
+  fmt_percent(columns = 2:11, decimals = 1, scale_values = F, incl_space = T) %>%
+  fmt_percent(columns = 12, decimals = 0, scale_values = F, incl_space = T) %>%
+  tab_footnote(md("**Note de lecture** : 9,1% des paragraphes de l'ensemble des articles publiés au premier semestre 2020 appartiennent à la classe 1 (acheter-petit), c'est-à-dire à la classe constituée des paragraphes qui traitent le sujet du pouvoir d'achat des consommateurs.")) %>% 
+  tab_options(table.width = pct(100)) %>%
+  cols_width(1 ~ pct(10)) %>%
+  tab_footnote(md("**Source** : corpus Europresse constitué par nos soins."))
+
+```
+
+Pour les groupe sur l'Ukraine et l'énergie (8) et les marchés financiers (9), il y a moins un effet journal qu'un effet date, comme on peut le voir dans les tableaux de contribution ci-dessus. Le sujet de l'Ukraine arrive en 2020 et repart ensuite, tandis que les marchés financiers sont surtout abordés en mai 2021, ce qui est sûrement lié à une chute du nasdaq en mai. C'est d'ailleurs le plus petit groupe avec seulement 64 paragraphes de notre corpus.
+
+#### Des discours médiatiques qui disent beaucoup des clivages de la presse
+
+La thématique du « Pouvoir d'achat des consommateurs » (1) englobe principalement la presse régionale avec *Aujourd'hui en France*, *L'Est républicain*, *La Dépêche du Midi*, *Le Parisien* et *Ouest-France*. Ce groupe fait irruption dans le paysage médiatique tardivement avec 26,45 % des paragraphes d'*Aujourd'hui en France* qui apparaissent en juillet 2023. Ainsi, cette classification nous apprend que ce retour de l'analyse des « conséquences de l'inflation » arrive par et via la presse régionale. Cette presse est peut-être plus proche du « terrain ».
+
+La thématique des « Revalorisations salariales » (3), est, elle, portée par des journaux issus de la gauche ou du catholicisme social comme *L'Humanité, Libération* ou *La Croix*, mais aussi le journal de centre-droit *Le Point*, ce qui peut paraître surprenant aux premiers abords. Cette thématique est surreprésentée entre janvier et mars 2020 et est sûrement très liée à la réforme des retraites que *Le Point* a beaucoup suivies.
+
+Enfin, la thématique des entreprises et de la production (3), est très investie par *Le Figaro* et *Valeurs Actuelles*, mais aussi des journaux locaux comme *Aujourd'hui en France*, *L'Est républicain*, *La Dépêche du Midi.* Il y a ici un groupe à l'intersection entre des journaux plutôt libéraux économiquement et la presse régionale. Ce n'est pas surprenant, car la vision micro-économique des entreprises est très liée à une analyse régionale.
+
+Dès lors, dans l'analyse du discours journalistique sur l'inflation, on retrouve des clivages politiques, mais aussi des clivages géographiques entre presse régionale et nationale. Quand les journaux dits de gauche regardent les effets sur le pouvoir d'achat des consommateurs, les journaux dits de droite regardent plutôt les effets sur la chaîne de production des entreprises par exemple.
+
+#### La presse spécialisée avec des thématiques plus macro-économiques
+
+On observe un « effet de journal » assez important sur certaines thématiques macro-économiques. Par exemple, *La Tribune* est sans conteste le média le plus présent dans le groupe sur les Rapports de l'INSEE (6) et sur les Politiques monétaires de la BCE (10). Ensuite, 40 % des paragraphes de *L'Express*, sont présents dans le groupe (9) sur la dette et des politiques budgétaires. Or, ce sont tous les deux des journaux spécialisés en économie. Il est intéressant de noter que l'analyse macro-économique est laissée à cette presse spécialisée, quand la presse plus généraliste se concentre sur des enjeux de plus petites envergures.
+
+```{r tableau contrib journal, echo=FALSE}
+table(figures$rai_cut_meta$journal, 
+      figures$rai_cut_meta$cluster_10 %>% 
+        factor(x = ., labels = sapply(rainette::rainette_stats(., dtm = dtmQ), function(x) paste0(x[1,1], "-", x[2,1])))) %>%
+  lprop() %>% as.data.frame.matrix() %>% 
+  gt(rownames_to_stub = T, locale = "fr")  %>% 
+  tab_header(title = md("**Répartition des paragraphes publiés par journal selon la classe affectée par la classification Reinert**")) %>%
+  fmt_percent(columns = 2:11, decimals = 1, scale_values = F, incl_space = T) %>%
+  fmt_percent(columns = 12, decimals = 0, scale_values = F, incl_space = T) %>%
+  tab_footnote(md("**Note de lecture** : 29,3% des paragraphes de l'ensemble des articles publiés par le journal *Aujourd'hui en France* appartiennent à la classe 1 (acheter-petit), c'est-à-dire à la classe constituée des paragraphes qui traitent le sujet du pouvoir d'achat des consommateurs.")) %>% 
+  tab_options(table.width = pct(100)) %>%
+  cols_width(1 ~ pct(10)) %>%
+  tab_footnote(md("**Source** : corpus Europresse constitué par nos soins."))
+```
+
+# Conclusion
+
+Cette analyse du discours médiatique sur le retour de l'inflation, nous a permis de démontrer un changement dans le cadrage, d'analyse, un changement du « sophisme de composition » entre 2021 et 2023. En effet, cet événement médiatique a d'abord été traité sous l'angle des causes avec une focalisation sur la guerre en Ukraine. Puis, la focale des journalistes s'est progressivement déplacée vers une analyse des conséquences de l'inflation notamment du pouvoir d'achat. Cette thématique du pouvoir d'achat a été notamment mise sur l'agenda [@kingdon1986] par la presse régionale, plus concentrées sur des analyses micro-économiques pour les consommateurs et les entreprises.
+
+Ensuite, les mots de l'inflation nous ont aidé à comprendre les relations entre vision politique, ancrage régionale, et traitement de l'information économique. Nous voyons se dégager des groupes d'articles en fonction de ces trois éléments structurants du champ médiatique, que sont la division droite/gauche, presse généraliste/ presse régionale et presse national/régional. Les mots de l'inflation nous permettent non seulement de voir les variations de ce traitement en termes temporel, mais aussi en termes de champ.
+
+Il semble que l'analyse des politiques monétaires soient très souvent laissées aux médias spécialisés et que la presse généraliste fait peu de cas de l'analyse macro-économique. Il serait intéressant de compléter cette étude par une analyse socio-historique, pour voir si cela a toujours été ainsi et s'il existe un délestage progressif des analyses monétaires à la presse spécialisée.
+
+Ce devoir rappelle incontestablement que tous les traitements médiatiques de phénomènes économiques sont partiels et donc partiaux. C'est de ce fait aux sociologues d'expliquer les raisons de ce cadrage spécifique de l'information et c'est ce que nous avons tenté de faire
+
+# Bibliographie

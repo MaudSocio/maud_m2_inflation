@@ -1,0 +1,70 @@
+---
+title: "Regression"
+affiliation: M2 QESS - ENS-PSL & EHESS
+format: pdf
+editor: visual
+mainfont: Garamond
+sansfont: Garamond
+monofont: Garamond
+geometry: "left=5cm, right=5cm, top=1cm, bottom=1cm"
+---
+
+```{r setup, include = FALSE, echo=FALSE}
+library(here)
+
+sys.source(here("04_scripts/00_setup.R"), envir = knitr::knit_global())
+
+sys.source(here("04_scripts/01_import_base_recodee.R"), envir = knitr::knit_global())
+
+sys.source(here("04_scripts/11_regression_lineaire.R"), envir = knitr::knit_global())
+
+```
+
+```{r tableau, echo=FALSE}
+
+library(gt)
+
+tbl_regression(reg_lineaire_ponderee, 
+               intercept = TRUE, 
+               include = c(PROFESSION, DIPLOME_rec, FINANCES_rec, Ageind_tranche, SEXE_rec, IPC),
+               label = list(
+                 all_intercepts() ~ "Constante",
+                 PROFESSION ~ "Profession",
+                 FINANCES_rec ~ "Situation financière actuelle du foyer",
+                 Ageind_tranche ~ "Âge de l'individu",
+                 SEXE_rec ~ "Genre",
+                 IPC ~ "Indice des prix à la consommation",
+                 DIPLOME_rec ~ "Niveau de diplôme")) %>%
+  modify_header(label = "",
+                estimate ~ "Coefficient",
+    std.error ~ "Erreur standard",
+    p.value ~ "P-valeur") %>% 
+  bold_labels() %>%
+  add_significance_stars(
+    hide_ci = FALSE,
+    hide_p = TRUE,
+    hide_se = TRUE ) %>% 
+as_gt() %>%
+  gt::tab_options(table.font.names = "Garamond", table.font.size = 11) %>%
+  gt::tab_header(
+  title = "Figure 3. Les déterminants de l'inflation perçue", 
+  subtitle = "Régression linéaire sur l'estimation de l'inflation") %>%
+  gt::tab_style(style = list(gt::cell_text(weight = "bold", align = "left", size = 15)),
+                locations = gt::cells_title(groups = "title")) %>%
+  gt::tab_style(style = list(gt::cell_text(align = "left", size = 12)),locations = gt::cells_title(groups = "subtitle")) %>%
+gt::tab_footnote(
+    footnote = md(
+      paste(
+        "**Source** : Données CAMME 2021, INSEE avec données mensuelles agrégées et pondérées. Nous avons pris en compte l'effet d'interaction entre la vague et le mois, même s'il n'est pas affiché sur ce tableau.",
+        "\n\n **Note de lecture** : À situation économique, âge de la vie, genre, IPC par année, et niveau de diplôme équivalent, l'estimation de l'inflation baisse de 1,9 points si l'individu a une profession de cadre, d'ingénieur ou de direction. Cet effet est statistiquement significatif au seuil de 0,001.",
+        "\n\n **F-test** :", f_statistic,
+        "\n **R2** :", r_squared,
+        "\n **R2 ajusté** :", r_squared_adj
+      )
+    )
+  )
+
+
+```
+
+

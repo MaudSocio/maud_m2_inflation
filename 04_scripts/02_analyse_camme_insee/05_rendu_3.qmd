@@ -1,0 +1,192 @@
+---
+title: "Les dessous de la non-participation"
+author: 
+    - Maud Yaiche 
+    - Dalong Li 
+affiliation: M2 QESS - ENS-PSL & EHESS
+date: "`r Sys.Date()`"
+editor_options: 
+  chunk_output_type: console
+lang: fr
+format: pdf
+editor: visual
+mainfont: Garamond
+sansfont: Garamond
+monofont: Garamond
+extra_dependencies: ["float"]
+tbl-colwidths: [30,20]
+fig_width: 5
+fig_height: 15
+keep_tex : false
+fig_caption: yes
+toc : FALSE
+latex_engine: "lualatex"
+number_sections: false
+pandoc_args: "--highlight=kate"
+geometry: margin=2cm
+fontsize: 11.5pt
+tables : yes
+bibliography: non_participation.bib
+---
+
+Nous avons choisi de vous montrer notre travail en train de se faire, c’est-à-dire les tentatives qui n’ont pas été fructueuses et celles qui se sont révélées payantes. Pour ce faire, nous vous proposons trois tableaux croisés assez simples entre la participation à une grève courte et des variables liées à l’attachement au travail, des variables socio-démographiques et enfin les raisons de la non-participation. 
+
+```{r setup, include = FALSE, echo=FALSE}
+library(here)
+
+# tbl-colwidths: [10000,25]
+
+
+sys.source(here("05_scripts/non_participation_greve/00_setup_non_participation.R"), envir = knitr::knit_global())
+
+sys.source(here("05_scripts/non_participation_greve/01_import_non_participation.R"), envir = knitr::knit_global())
+
+sys.source(here("05_scripts/non_participation_greve/02_recodages_non_participation.R"), envir = knitr::knit_global())
+
+```
+
+# 1. **L’attachement joue-t-il un rôle dans la non-participation ?**
+
+```{=tex}
+\begingroup
+\setlength{\LTleft}{0pt minus 60pt}
+\setlength{\LTright}{0pt minus 20pt}
+\fontsize{8pt}{8pt}\selectfont
+\addtolength{\tabcolsep}{-6pt}
+```
+```{r Attachement et grève, echo=FALSE, message = FALSE}
+
+library(gt)
+my_table <- pacs2 %>% 
+  tbl_summary(include = c(ancienete, stabilite, frequentation_collegue, equipe), 
+              by = participation_greve_courte,
+              missing = "no",
+              label = list(
+              ancienete ~ "Temps passé dans l'entreprise", 
+              stabilite ~ "Type de contrat plus ou moins stable",
+              equipe  ~ "Impression de faire partie d'une équipe",
+              frequentation_collegue ~ "Fréquentation des collègues en dehors du travail")) %>%
+              add_overall() %>% 
+              add_p() %>%
+              bold_labels()  %>%
+              modify_caption("**Tableau 2. Participation ou non à une grève courte en fonction de l'attachement au travail** *(N = {N})* ")   %>%
+               modify_footnote(update = everything() ~ 
+                                 "**Note de lecture** : Sur 193 personnes qui n'ont pas participé à une grève courte, alors qu'il y en avait une, 42 personnes soit 22% fréquentent souvent leurs collègues en dehors du travail.\n
+                               **Champ** : Personnes au travail ou au travail ces trois dernières années \n
+                              **Source** : PACS 2021") %>%
+              as_gt() %>%
+                gt::tab_options(table.font.names = "Garamond", 
+                                table.font.size = 8, 
+                                container.width = pct(50), 
+                                container.height = pct(150), 
+                                table.width = pct(90), 
+                                column_labels.text_transform = "wrap")
+                               # container.width = pct(80), # Largeur du conteneur de la table à 80% de la page
+                               #  container.height = pct(150)) # Hauteur du conteneur de la table en pixels
+                                # container.padding.x = px(10), # Remplissage horizontal du conteneur en pixels
+                                #  container.padding.y = px(5)) # Remplissage vertical du conteneur en pixels
+
+                                # table.width = pct(90)) # Définit la largeur de la table à 90% de la largeur de la page)
+
+my_table 
+
+
+
+# # Appliquer le style CSS pour ajuster la taille de la page
+# styled_table <- my_table %>%
+#   gt::tab_style(
+#     style = list(width = "100%"), 
+#     locations = cells_body())
+# 
+# # Afficher le tableau
+# styled_table
+
+```
+
+```{=tex}
+\endgroup
+```
+**Ce tableau est assez parlant pour la participation et peu pour la non-participation.** Par exemple, la fréquentation régulière de ses collègues augmente la participation et à l’inverse la faible fréquentation fait baisser la participation. Pourtant, quand on regarde la non-participation avec grève ou sans grève, on peine à trouver un effet de cette variable. De même, plus la personne passe de temps dans l’entreprise, plus elle participe aux grèves, mais l’effet est plus ténu pour la non-participation. **Le seul résultat intéressant, celui de la stabilité de l’emploi, n’est malheureusement pas significatif.** En effet, si le contrat est stable, c’est-à-dire en CDI et non en alternance ou en CDD, alors la non-participation à la grève baisse par rapport à l’effectif total des contrats stables (88 % des 193 personnes qui ne participent pas à une grève, alors qu’il y en a une, sont en contrat stable alors que les contrats stables représentent 92 % de l’effectif total.) La stabilité de l’emploi dégraderait la non-participation, même si ce résultat n’est pas significatif. Pour l’impression de faire partie d’une équipe, malheureusement les effectifs qui ont répondu sont trop faibles pour vraiment dire quelque chose de ces résultats. Dès lors, ce premier tableau ne semble pas satisfaisant pour répondre à notre question de recherche et nous allons certainement changer d’angle.
+
+# 2. Peut-on se raccrocher à des variables socio-économiques plus lourdes pour expliquer la non-participation ?
+
+```{=tex}
+\begingroup
+\setlength{\LTleft}{0pt minus 60pt}
+\setlength{\LTright}{0pt minus 50pt}
+\fontsize{8pt}{8pt}\selectfont
+\addtolength{\tabcolsep}{-6pt}
+```
+```{r Variables socio-demo, echo=FALSE, message = FALSE, width=10}
+pacs2 %>% 
+  tbl_summary(include = c(genre, pcs_spe, revenus_rec, age4, logement, couple), 
+              by = participation_greve_courte,
+              missing = "no",
+              label = list(
+              genre ~ "Genre", 
+              pcs_spe ~ "CSP",
+              couple ~ "Vie en couple",
+              age4 ~ "Âge",
+              revenus_rec ~ "Tranche de revenu mensuel du ménage par UC",
+              logement ~ "Statut d'occupation du logement")) %>% 
+              add_overall() %>% 
+              add_p() %>% 
+  bold_labels()  %>%
+  modify_caption("**Tableau 2. Tableau croisé de la participation ou non à une grève courte et de variables socio-économiques** (N = {N})")   %>%
+ modify_footnote(update = everything() ~ 
+                   "**Note de lecture** : Sur 193 personnes qui n'ont pas participé à une grève courte, alors qu'il y en avait une dans l'entreprise personnes, 124 personnes soit 65% de ces personnes sont des femmes.\n
+                 **Champ** : Personnes au travail ou au travail ces trois dernières années \n
+                **Source** : PACS 2021") %>%
+as_gt() %>%
+  gt::tab_options(table.font.names = "Garamond", table.font.size = 10)
+```
+
+```{=tex}
+\endgroup
+```
+La première bonne surprise, c’est que nous avons enfin des résultats plus satisfaisants pour la non-participation. Prenons tout d’abord le statut d’occupation du logement et la non-participation avec grève. **Le fait d’être propriétaire sans crédit fait diminuer la non-participation avec grève ( 33 % alors qu'ils représentent 40 % de l'effectif) et augmenter la participation de 12 points. A l’inverse le fait d’avoir un crédit augmente nettement la non-participation avec grève et fait baisser à la marge la non-participation sans grève**. Le crédit semble inciter à la non-participation aux grèves. Les échéances régulières de ces dépenses incompressibles, contraintes [@martinache2019] entraveraient la contestation, certainement par peur de perdre son travail.
+
+Pour les CSP, être ouvrier fait diminuer la non-participation, ce qui peut être dû à une culture ouvrière historique plus attachées au répertoire qu'est la grève [@noiriel], à la différence des employés et des professions intermédiaires. En revanche, le fait d’être un cadre ou une profession intellectuelle supérieure - CPIS - fait augmenter la non-participation à une grève, quand il y en a une. On peut probablement postuler un détachement des cadres vis-à-vis de ce répertoire d’action collective au travail, mais aussi l’identification des cadres aux classes dirigeantes, s’ils n’en font pas partie. Il faudrait faire une petite régression avec le revenu pour voir si la CSP joue toutes choses égales par ailleurs.
+
+Pour le revenu, les résultats ne sont pas très satisfaisants pour les tranches autour de la médiane. En revanche, pour les hauts revenus (plus de 3 200 euros), on observe une non-participation un peu plus importante. Peut-être existe-t-il un *effet de seuil* plus haut dans la courbe de gauss. Malheureusement nous ne disposons que du revenu discrétisé et nous ne pouvons pas aller vraiment plus loin dans l’exploration des données.
+
+Le statut conjugal ne semble pas avoir d’effet sur la participation aux grèves courtes, il faudrait aller regarder du côté des grèves longues pour voir si le salaire d'une autre personne conduit à une forme de stabilité économique, qui permet de rester plus longtemps engagé dans une grève. On pourrait croiser aussi avec le nombre d’enfants pour voir si la charge économique des enfants influencent la non-participation. 
+
+# 3. Raisons et bonnes raisons de la non-participation
+
+```{=tex}
+\begingroup
+\setlength{\LTleft}{0pt minus 60pt}
+\setlength{\LTright}{0pt minus 20pt}
+\fontsize{8pt}{8pt}\selectfont
+\addtolength{\tabcolsep}{-6pt}
+```
+```{r Raisons non-participation, echo=FALSE, message = FALSE, width=10}
+
+pacs3 %>% 
+  tbl_summary(include = raisons_non_participation, 
+              by = syndic_reg,
+              label = raisons_non_participation ~ "Raisons de la non-participation aux grèves longues ou courtes",  
+              missing_text = "N'a pas répondu") %>%
+  bold_labels()  %>%
+  modify_caption("**Tableau 3. Tableau croisé entre les raisons de non-participation aux grèves et la syndicalisation** (N = {N})")   %>%
+ modify_footnote(update = everything() ~ 
+                   "**Note de lecture** : Sur les 783 personnes qui n'ont pas participé à une grève longue ou courte, alors qu'il y en avait une dans l'entreprise, 85 personnes n'ont pas participé car ils étaient en désaccord avec les mot d'ordre de la grève.\n
+                 **Champ** : Personnes au travail ou au travail ces trois dernières années, qui n'ont pas participé à une grève longue ou courte, alors qu'il y en avait une \n
+                **Source** : PACS 2021") %>%
+modify_header(label = "") %>%
+  add_p() %>%
+  add_overall() %>%
+  as_gt() %>%
+  gt::tab_options(table.font.names = "Garamond", table.font.size = 10)
+
+```
+
+```{=tex}
+\endgroup
+```
+Nous proposons ici de regarder les raisons de la non-participation à une grève courte en fonction de la syndicalisation. Sur les raisons pour l’ensemble de la population tout d’abord, le désaccord avec les mots d’ordre l’emporte. Peut-être peut-on reconnaître ici une distance des revendications des employés avec les revendications syndicales, une défiance vis-à-vis des syndicats. On remarque ici que si la personne est adhérente ou a été adhérente à un syndicat cette raison ressort beaucoup plus. L'individu serait plus enclin à faire grève, mais serait plus critique sur les raisons données par les syndicats. Ensuite viennent les raisons d’un défaitisme par rapport à la rentabilité de la grève : “cela n’aurait rien changé” et le fait que la grève soit coûteuse en termes d’argent. Les autres résultats sont trop faibles statistiquement pour être interprétés. 
+
+Par ces tableaux croisés, on comprend dès lors la difficulté de travailler sur la non-participation avec des effets plus tenus des variables explicatives que pour la participation. Nous avons aussi travaillé sur une base non-pondérée ce qui pourrait changer à la marge nos résultats.
+
+# Bibliographie
